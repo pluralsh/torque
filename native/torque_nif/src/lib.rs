@@ -3,6 +3,7 @@
 use sonic_rs::extract::{Keys, Validate};
 
 mod atoms;
+mod calendar;
 mod decoder;
 mod encoder;
 mod escape;

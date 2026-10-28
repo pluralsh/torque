@@ -16,4 +16,21 @@ rustler::atoms! {
     unhandled_struct,
     // struct marker key (atom `__struct__` in Elixir structs)
     __struct__ = "__struct__",
+    // calendar structs encoded natively (see calendar.rs)
+    date_module = "Elixir.Date",
+    time_module = "Elixir.Time",
+    naive_datetime_module = "Elixir.NaiveDateTime",
+    datetime_module = "Elixir.DateTime",
+    calendar_iso = "Elixir.Calendar.ISO",
+    calendar,
+    year,
+    month,
+    day,
+    hour,
+    minute,
+    second,
+    microsecond,
+    time_zone,
+    utc_offset,
+    std_offset,
 }

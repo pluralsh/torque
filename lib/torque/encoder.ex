@@ -11,7 +11,9 @@ defprotocol Torque.Encoder do
   implementation is an error, never silently dropped fields.
 
   Torque ships implementations for `Date`, `Time`, `NaiveDateTime`, and
-  `DateTime`, each encoding as its ISO 8601 string.
+  `DateTime`, each encoding as its ISO 8601 string. For values in the ISO
+  calendar the NIF produces the same string itself, so these implementations
+  only run for other calendars or values the NIF declines.
 
   ## Deriving
 

@@ -1,10 +1,11 @@
 use crate::atoms;
+use crate::calendar::{self, map_get};
 use crate::escape::InvalidUtf8;
 use crate::nif_util::{make_tuple2, timeslice_percent, MapEntries};
 use crate::types::MAX_DEPTH;
 use rustler::sys::{
     c_int, c_uint, enif_get_atom, enif_get_double, enif_get_int64, enif_get_list_cell,
-    enif_get_map_value, enif_get_tuple, enif_get_uint64, enif_inspect_binary, enif_is_empty_list, enif_release_binary,
+    enif_get_tuple, enif_get_uint64, enif_inspect_binary, enif_is_empty_list, enif_release_binary,
     enif_term_to_binary, ErlNifBinary, ErlNifCharEncoding, ErlNifEnv, ERL_NIF_TERM,
 };
 use rustler::{schedule, Atom, Env, NewBinary, NifResult, Term, TermType};
@@ -582,22 +583,25 @@ fn encode_map<const PRETTY: bool>(
     let iter = MapEntries::new(term).ok_or(EncodeError::UnsupportedType)?;
     // Elixir structs (maps carrying an atom `__struct__` key) are not
     // encodable as-is: they must opt into Torque.Encoder, and the Elixir layer
-    // normalizes them through the protocol and retries once. The test rides on
-    // the iteration the encoder already does: atoms are immediate terms, so a
-    // key is the `__struct__` atom exactly when the raw terms are equal. A
+    // normalizes them through the protocol and retries once. Detection rides
+    // on the iteration the encoder already does: atoms are immediate terms, so
+    // a key is the `__struct__` atom exactly when the raw terms are equal. A
     // binary "__struct__" key is boxed and never matches.
     //
-    // Iteration order is not alphabetical (since OTP 26 small maps with atom
-    // keys are ordered by atom index), so an unencodable field such as
-    // DateTime's `microsecond` tuple can fail before `__struct__` is reached.
-    // On failure the map is probed for the key directly, which keeps the
-    // success path a single pass.
+    // Iteration follows atom indices rather than names, so a struct's fields
+    // can come before `__struct__`, and one of them (DateTime's `microsecond`
+    // tuple) can fail to encode first. A failing field therefore probes the
+    // map for the key. Probing every map up front instead costs 6-7% on plain
+    // payloads; the fields encoded before `__struct__` is seen are only those
+    // whose atoms predate it, and are rewound.
+    let start = s.buf.len();
     let struct_key = atoms::__struct__().as_c_arg();
     s.buf.push(b'{');
     let mut first = true;
     for (key, value) in iter {
         if key.as_c_arg() == struct_key {
-            return Err(EncodeError::UnhandledStruct);
+            s.buf.truncate(start);
+            return encode_struct(env_raw, term, value.as_c_arg(), s);
         }
         s.separator::<PRETTY>(first, MAX_DEPTH - depth + 1);
         first = false;
@@ -606,23 +610,33 @@ fn encode_map<const PRETTY: bool>(
             encode_term::<PRETTY>(env, env_raw, value, s, depth - 1)
         });
         if let Err(e) = entry {
-            return Err(if is_struct(env_raw, term, struct_key) {
-                EncodeError::UnhandledStruct
-            } else {
-                e
-            });
+            return match map_get(env_raw, term.as_c_arg(), struct_key) {
+                Some(module) => {
+                    s.buf.truncate(start);
+                    encode_struct(env_raw, term, module, s)
+                }
+                None => Err(e),
+            };
         }
     }
     s.close::<PRETTY>(b'}', !first, MAX_DEPTH - depth);
     Ok(())
 }
 
-#[cold]
-fn is_struct(env_raw: *mut ErlNifEnv, map: Term, struct_key: ERL_NIF_TERM) -> bool {
-    let mut out = MaybeUninit::<ERL_NIF_TERM>::uninit();
-    // SAFETY: `map` is a map term belonging to `env_raw`; `out` is only
-    // written, never read.
-    unsafe { enif_get_map_value(env_raw, map.as_c_arg(), struct_key, out.as_mut_ptr()) != 0 }
+/// The calendar structs Torque implements the protocol for are written here
+/// directly, which keeps payloads holding timestamps off the retry.
+#[inline(never)]
+fn encode_struct(
+    env_raw: *mut ErlNifEnv,
+    map: Term,
+    module: ERL_NIF_TERM,
+    s: &mut Scratch,
+) -> Result<(), EncodeError> {
+    if calendar::write_iso8601(env_raw, map.as_c_arg(), module, &mut s.buf) {
+        Ok(())
+    } else {
+        Err(EncodeError::UnhandledStruct)
+    }
 }
 
 #[inline]

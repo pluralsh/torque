@@ -193,7 +193,9 @@ defstruct [:id, :name, :secret]
 ```
 
 `Date`, `Time`, `NaiveDateTime`, and `DateTime` ship with implementations and
-encode as ISO 8601 strings.
+encode as ISO 8601 strings. In the ISO calendar the NIF writes them directly,
+so payloads holding timestamps encode in one pass rather than through the
+protocol retry; redefining those implementations does not change that output.
 
 > **Breaking change in 0.4.0.** Structs previously encoded as raw maps, leaking
 > the struct marker into the output: `~D[2026-09-14]` produced

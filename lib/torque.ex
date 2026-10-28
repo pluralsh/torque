@@ -40,7 +40,8 @@ defmodule Torque do
   Structs are rejected with `{:error, :unhandled_struct}` unless they
   implement `Torque.Encoder` (see the protocol docs for deriving with
   `:only` / `:except`). Torque ships implementations for `Date`, `Time`,
-  `NaiveDateTime`, and `DateTime`, which encode as ISO 8601 strings.
+  `NaiveDateTime`, and `DateTime`, which encode as ISO 8601 strings; in the
+  ISO calendar the NIF writes them directly, without the protocol retry.
 
   ## Scheduler awareness
 
