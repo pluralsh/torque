@@ -68,10 +68,12 @@ tag).
 
 This is the pluralsh fork, consumed as a git dependency from `main`; it is not
 published to Hex. The script reads the version from `mix.exs`, creates a git
-tag, waits for the release workflow to build precompiled NIFs for all targets
-(macOS, glibc and musl Linux), publishes the draft GitHub release, then
-generates `checksums.txt` from its assets and commits and pushes it to `main`.
-A release is usable by consumers once that commit lands.
+tag and waits for the release workflow. The workflow builds precompiled NIFs for
+all targets (macOS, glibc and musl Linux) into a draft release, then its
+`publish_release` job publishes it, generates `checksums.txt` from its assets
+and commits it to `main`. A release is usable by consumers once that commit
+lands. `publish_release` expects one asset per `build_release` job: update its
+count when the matrix changes.
 
 ### Version bumping
 

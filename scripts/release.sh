@@ -93,32 +93,9 @@ echo "==> Watching workflow run ${RUN_ID}..."
 echo "    https://github.com/pluralsh/torque/actions/runs/${RUN_ID}"
 gh run watch "$RUN_ID" --exit-status
 
-# Publish draft release
-echo "==> Publishing release ${TAG}..."
-gh release edit "$TAG" --draft=false
-
-# Generate checksums: rebar/fetch_nif.escript checks every download against
-# this file, which ships in the package.
-echo "==> Generating checksums..."
-ASSETS=$(mktemp -d)
-gh release download "$TAG" --dir "$ASSETS" --pattern '*.tar.gz'
-if ! ls "$ASSETS"/*.tar.gz >/dev/null 2>&1; then
-  echo "error: release ${TAG} has no NIF assets"
-  exit 1
-fi
-(cd "$ASSETS" && shasum -a 256 *.tar.gz) > checksums.txt
-rm -rf "$ASSETS"
-
-# Consumers depend on this fork through git, so the release is usable once
-# main carries the checksums for its assets. There is no Hex publish.
-echo "==> Committing checksums..."
-git add checksums.txt
-if [ -n "$(git status --porcelain checksums.txt)" ]; then
-  git commit -m "Add checksums for ${TAG}"
-  git push origin HEAD
-else
-  echo "    no changes to commit"
-fi
+# The workflow's publish_release job published the release and committed its
+# checksums to main. There is no Hex publish.
+git pull -q --ff-only origin main
 
 echo ""
 echo "==> torque ${TAG} released"
