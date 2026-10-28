@@ -46,6 +46,12 @@ jobs:
           - { target: x86_64-unknown-linux-gnu,    os: ubuntu-22.04, rustflags: "-C target-cpu=x86-64",    pgo: true }
           - { target: x86_64-unknown-linux-gnu,    os: ubuntu-22.04, rustflags: "-C target-cpu=x86-64-v2", variant: v2, pgo: true }
           - { target: x86_64-unknown-linux-gnu,    os: ubuntu-22.04, rustflags: "-C target-cpu=x86-64-v3 -C target-feature=+pclmulqdq", variant: v3, pgo: true }
+          # musl (Alpine). A NIF has to link dynamically, and Rust links musl
+          # statically unless crt-static is turned off.
+          - { target: aarch64-unknown-linux-musl,  os: ubuntu-22.04, use-cross: true, rustflags: "-C target-feature=-crt-static" }
+          - { target: x86_64-unknown-linux-musl,   os: ubuntu-22.04, use-cross: true, rustflags: "-C target-feature=-crt-static -C target-cpu=x86-64" }
+          - { target: x86_64-unknown-linux-musl,   os: ubuntu-22.04, use-cross: true, rustflags: "-C target-feature=-crt-static -C target-cpu=x86-64-v2", variant: v2 }
+          - { target: x86_64-unknown-linux-musl,   os: ubuntu-22.04, use-cross: true, rustflags: "-C target-feature=-crt-static -C target-cpu=x86-64-v3 -C target-feature=+pclmulqdq", variant: v3 }
 
     steps:
       - name: Checkout source code

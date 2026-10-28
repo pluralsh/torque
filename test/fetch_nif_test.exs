@@ -58,6 +58,31 @@ defmodule Torque.FetchNifTest do
     end
   end
 
+  test "musl x86_64 gets the same CPU variants as glibc", %{tmp_dir: dir} do
+    cpuinfo = Path.join(dir, "cpuinfo")
+    File.write!(cpuinfo, @haswell)
+    env = [{"TORQUE_NIF_TARGET", "x86_64-unknown-linux-musl"}, {"TORQUE_CPUINFO", cpuinfo}]
+
+    assert asset(env) == "libtorque_nif-v1.2.3-nif-2.15-x86_64-unknown-linux-musl--v3.so.tar.gz"
+
+    assert asset([{"TORQUE_NIF_TARGET", "aarch64-unknown-linux-musl"}, {"TORQUE_CPUINFO", cpuinfo}]) ==
+             "libtorque_nif-v1.2.3-nif-2.15-aarch64-unknown-linux-musl.so.tar.gz"
+  end
+
+  test "the host target comes from the system architecture" do
+    for {system_architecture, target} <- [
+          {"x86_64-pc-linux-musl", "x86_64-unknown-linux-musl"},
+          {"aarch64-unknown-linux-musl", "aarch64-unknown-linux-musl"},
+          {"x86_64-pc-linux-gnu", "x86_64-unknown-linux-gnu"},
+          {"aarch64-unknown-linux-gnu", "aarch64-unknown-linux-gnu"},
+          {"aarch64-apple-darwin23.4.0", "aarch64-apple-darwin"}
+        ] do
+      out = asset([{"TORQUE_NIF_TARGET", nil}, {"TORQUE_SYSTEM_ARCHITECTURE", system_architecture}])
+
+      assert out =~ ~r/^libtorque_nif-v1\.2\.3-nif-2\.15-#{target}(--v[23])?\.so\.tar\.gz$/
+    end
+  end
+
   test "an unsupported target has no asset" do
     assert asset([{"TORQUE_NIF_TARGET", "riscv64-unknown-linux-gnu"}]) ==
              "none: unsupported platform riscv64-unknown-linux-gnu"

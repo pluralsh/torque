@@ -119,11 +119,18 @@ jobs:
       # The download path, against the release in the shipped checksum file. A
       # published binary only loads into a build of the same NIF sources, so
       # this stops at a verified install.
+      # Skipped until this repo has published the release in checksums.txt
+      # (the upstream checksums the fork started from are for lpgauth's).
       - name: Fetch a published NIF
         env:
           TORQUE_BUILD: ""
+          GH_TOKEN: ${{ github.token }}
         run: |
           VSN=$(sed -n 's/.*libtorque_nif-v\([0-9.]*\)-nif-.*/\1/p' checksums.txt | head -n1)
+          if ! gh release view "v$VSN" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            echo "no v$VSN release in $GITHUB_REPOSITORY yet, skipping"
+            exit 0
+          fi
           rm -f priv/native/torque_nif.so
           TORQUE_NIF_VSN="$VSN" escript rebar/fetch_nif.escript
           test -s priv/native/torque_nif.so

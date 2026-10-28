@@ -53,7 +53,8 @@ the targets it builds on a native runner (`aarch64-apple-darwin`,
 `x86_64-unknown-linux-gnu`): it builds an instrumented NIF, runs
 `bench/pgo_workload.exs` through the BEAM to collect a same-arch profile, then
 rebuilds with `-Cprofile-use`. The cross-compiled targets (`x86_64-apple-darwin`
-built on the arm runner, and `aarch64-unknown-linux-gnu` via `cross`) build
+built on the arm runner, and `aarch64-unknown-linux-gnu` and both musl targets
+via `cross`) build
 plain `-O3`, because PGO needs to *run* the instrumented binary and there's no
 native runner for them. Trigger `release.yml` via `workflow_dispatch` to
 build-and-profile every target without publishing (create/upload are gated on a
@@ -62,19 +63,15 @@ tag).
 ## Releasing
 
 ```bash
-export HEX_API_KEY=...   # key with api:write permission
-./scripts/release.sh     # tag, wait for CI, checksums, commit, publish
+./scripts/release.sh     # tag, wait for CI and the release build, commit checksums
 ```
 
-The script reads the version from `mix.exs`, creates a git tag, waits for the
-release workflow to build precompiled NIFs for all targets, generates checksums,
-commits and pushes them, then runs `mix hex.publish --yes`.
-
-`HEX_API_KEY` is Hex's unencrypted write key: setting it skips the local-password
-prompt, which is what makes the publish step non-interactive. Mint one with
-`mix hex.user key generate --key-name torque-release --permission api:write`.
-The script fails up front (before tagging) if it's missing. To stop after
-checksums and publish by hand instead, run with `SKIP_PUBLISH=1`.
+This is the pluralsh fork, consumed as a git dependency from `main`; it is not
+published to Hex. The script reads the version from `mix.exs`, creates a git
+tag, waits for the release workflow to build precompiled NIFs for all targets
+(macOS, glibc and musl Linux), publishes the draft GitHub release, then
+generates `checksums.txt` from its assets and commits and pushes it to `main`.
+A release is usable by consumers once that commit lands.
 
 ### Version bumping
 

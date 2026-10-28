@@ -44,13 +44,6 @@ if ! command -v gh >/dev/null 2>&1; then
   exit 1
 fi
 
-if [ -z "${SKIP_PUBLISH:-}" ] && [ -z "${HEX_API_KEY:-}" ]; then
-  echo "error: HEX_API_KEY not set — export a key with api:write permission"
-  echo "  generate: mix hex.user key generate --key-name torque-release --permission api:write"
-  echo "  or set SKIP_PUBLISH=1 to stop after checksums and publish by hand"
-  exit 1
-fi
-
 # The tag must point at a pushed commit that passed CI: a tag on an unpushed or
 # red commit still triggers the release build, and the tag is hard to retract.
 HEAD_SHA=$(git rev-parse HEAD)
@@ -67,7 +60,7 @@ if [ -z "$CI_RUN" ]; then
 fi
 echo "==> Waiting for CI run ${CI_RUN} on ${HEAD_SHA}"
 if ! gh run watch "$CI_RUN" --exit-status >/dev/null; then
-  echo "error: CI failed for ${HEAD_SHA}: https://github.com/lpgauth/torque/actions/runs/${CI_RUN}"
+  echo "error: CI failed for ${HEAD_SHA}: https://github.com/pluralsh/torque/actions/runs/${CI_RUN}"
   exit 1
 fi
 
@@ -92,12 +85,12 @@ done
 
 if [ -z "$RUN_ID" ]; then
   echo "error: could not find release workflow run"
-  echo "check: https://github.com/lpgauth/torque/actions"
+  echo "check: https://github.com/pluralsh/torque/actions"
   exit 1
 fi
 
 echo "==> Watching workflow run ${RUN_ID}..."
-echo "    https://github.com/lpgauth/torque/actions/runs/${RUN_ID}"
+echo "    https://github.com/pluralsh/torque/actions/runs/${RUN_ID}"
 gh run watch "$RUN_ID" --exit-status
 
 # Publish draft release
@@ -116,17 +109,8 @@ fi
 (cd "$ASSETS" && shasum -a 256 *.tar.gz) > checksums.txt
 rm -rf "$ASSETS"
 
-if [ -n "${SKIP_PUBLISH:-}" ]; then
-  echo "==> Checksums written to checksums.txt"
-  echo ""
-  echo "Next steps:"
-  echo "  1. git add checksums.txt"
-  echo "  2. git commit -m 'Add checksums for ${TAG}'"
-  echo "  3. git push origin main"
-  echo "  4. mix hex.publish"
-  exit 0
-fi
-
+# Consumers depend on this fork through git, so the release is usable once
+# main carries the checksums for its assets. There is no Hex publish.
 echo "==> Committing checksums..."
 git add checksums.txt
 if [ -n "$(git status --porcelain checksums.txt)" ]; then
@@ -136,8 +120,5 @@ else
   echo "    no changes to commit"
 fi
 
-echo "==> Publishing to Hex..."
-mix hex.publish --yes
-
 echo ""
-echo "==> torque ${TAG} published"
+echo "==> torque ${TAG} released"

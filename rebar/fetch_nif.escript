@@ -12,11 +12,12 @@
 %%   TORQUE_CPU_VARIANT=v3      force an x86_64 variant (v3, v2, or anything else for baseline)
 %%   TORQUE_NIF_TARGET=<triple> fetch for another target, e.g. when building a release elsewhere
 %%   TORQUE_NIF_VSN=0.4.7       fetch another release's asset (it must be in the checksum file)
+%%   TORQUE_SYSTEM_ARCHITECTURE stands in for erlang:system_info(system_architecture), for tests
 %%
 %% `escript rebar/fetch_nif.escript --print-asset' prints the asset this host would use.
 -mode(compile).
 
--define(REPO, "https://github.com/lpgauth/torque").
+-define(REPO, "https://github.com/pluralsh/torque").
 -define(NIF_VERSION, "2.15").
 -define(DEST, "priv/native/torque_nif.so").
 -define(STAMP, "priv/native/torque_nif.stamp").
@@ -24,7 +25,9 @@
     "aarch64-apple-darwin",
     "x86_64-apple-darwin",
     "aarch64-unknown-linux-gnu",
-    "x86_64-unknown-linux-gnu"
+    "x86_64-unknown-linux-gnu",
+    "aarch64-unknown-linux-musl",
+    "x86_64-unknown-linux-musl"
 ]).
 -define(V2_FLAGS, ["pni", "ssse3", "sse4_1", "sse4_2", "popcnt", "cx16", "lahf_lm"]).
 -define(V3_FLAGS,
@@ -117,18 +120,26 @@ target() ->
         false -> {error, "unsupported platform " ++ Target}
     end.
 
+%% Alpine's OTP reports e.g. x86_64-pc-linux-musl, glibc distros
+%% x86_64-pc-linux-gnu and macOS aarch64-apple-darwin23.4.0.
 host_target() ->
-    SystemArch = erlang:system_info(system_architecture),
+    SystemArch =
+        case os:getenv("TORQUE_SYSTEM_ARCHITECTURE") of
+            Override when is_list(Override), Override =/= "" -> Override;
+            _ -> erlang:system_info(system_architecture)
+        end,
     Arch =
         case hd(string:split(SystemArch, "-")) of
             "amd64" -> "x86_64";
             "arm64" -> "aarch64";
             Other -> Other
         end,
-    case {string:find(SystemArch, "darwin"), string:find(SystemArch, "linux-gnu")} of
-        {nomatch, nomatch} -> SystemArch;
-        {nomatch, _} -> Arch ++ "-unknown-linux-gnu";
-        {_, _} -> Arch ++ "-apple-darwin"
+    Matches = fun(Pattern) -> string:find(SystemArch, Pattern) =/= nomatch end,
+    case {Matches("darwin"), Matches("linux-musl"), Matches("linux-gnu")} of
+        {true, _, _} -> Arch ++ "-apple-darwin";
+        {_, true, _} -> Arch ++ "-unknown-linux-musl";
+        {_, _, true} -> Arch ++ "-unknown-linux-gnu";
+        _ -> SystemArch
     end.
 
 variant_suffix("x86_64-" ++ _) ->

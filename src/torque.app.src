@@ -1,12 +1,12 @@
 {application, torque, [
     {description, "High-performance JSON library via Rustler NIFs (sonic-rs)"},
-    {vsn, "0.5.4"},
+    {vsn, "0.6.0"},
     {registered, []},
     {applications, [kernel, stdlib]},
     {env, []},
     {licenses, ["MIT"]},
     {links, [
-        {"GitHub", "https://github.com/lpgauth/torque"},
+        {"GitHub", "https://github.com/pluralsh/torque"},
         {"Docs", "https://hexdocs.pm/torque"}
     ]}
 ]}.

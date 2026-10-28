@@ -25,7 +25,7 @@ Add to your `mix.exs`:
 ```elixir
 def deps do
   [
-    {:torque, "~> 0.5.4"}
+    {:torque, "~> 0.6.0", git: "https://github.com/pluralsh/torque.git", branch: "main"}
   ]
 end
 ```
@@ -33,10 +33,12 @@ end
 or, with rebar3, to your `rebar.config` (see [Erlang](#erlang)):
 
 ```erlang
-{deps, [{torque, "~> 0.5.4"}]}.
+{deps, [{torque, {git, "https://github.com/pluralsh/torque.git", {branch, "main"}}}]}.
 ```
 
-Precompiled binaries are available for macOS and glibc Linux on `aarch64` and `x86_64` (with CPU-optimized variants on `x86_64`, below). Anything else, such as musl (Alpine) or Windows, builds from source: install a stable Rust toolchain and set `TORQUE_BUILD=true`.
+Depend on `main` rather than a release tag: `scripts/release.sh` commits a release's checksums to `main` after its assets are built.
+
+Precompiled binaries are available for macOS, glibc Linux and musl Linux (Alpine) on `aarch64` and `x86_64` (with CPU-optimized variants on `x86_64`, below). Anything else, such as Windows, builds from source: install a stable Rust toolchain and set `TORQUE_BUILD=true`.
 
 A source build targets the platform's baseline CPU, so the binary runs on any machine of that architecture. On x86_64 that baseline is SSE2, which leaves the AVX2 parser paths out: set `RUSTFLAGS="-C target-cpu=x86-64-v3 -C target-feature=+pclmulqdq"` to match the precompiled v3 variant, or `-C target-cpu=native` only when the binary will run on the machine that built it.
 
