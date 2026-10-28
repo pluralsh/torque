@@ -13,6 +13,16 @@ defmodule Torque.EncoderProtocolTest do
     defstruct [:x]
   end
 
+  # `:ok` is an ERTS atom with a lower index than `:__struct__`, so it
+  # iterates first and its tuple value fails before the struct key is seen.
+  defmodule TupleFirst do
+    defstruct [:ok]
+  end
+
+  defimpl Torque.Encoder, for: TupleFirst do
+    def encode(%{ok: {a, b}}), do: [a, b]
+  end
+
   defmodule ReturnsSelf do
     defstruct [:a]
   end
@@ -244,6 +254,15 @@ defmodule Torque.EncoderProtocolTest do
                "n" => "2026-09-14T12:34:56",
                "dt" => "2026-09-14T12:34:56Z"
              } = Jason.decode!(json)
+    end
+
+    test "a struct is detected when an unencodable field iterates before __struct__" do
+      struct = %TupleFirst{ok: {1, 2}}
+      assert hd(Map.keys(struct)) == :ok
+
+      assert {:ok, "[1,2]"} = Torque.encode(struct)
+      assert {:ok, ~s({"v":[1,2]})} = Torque.encode(%{v: struct})
+      assert {:error, :unsupported_type} = Torque.encode(%{ok: {1, 2}})
     end
 
     test "they work nested in lists" do

@@ -4,7 +4,7 @@ use crate::nif_util::{make_tuple2, timeslice_percent, MapEntries};
 use crate::types::MAX_DEPTH;
 use rustler::sys::{
     c_int, c_uint, enif_get_atom, enif_get_double, enif_get_int64, enif_get_list_cell,
-    enif_get_tuple, enif_get_uint64, enif_inspect_binary, enif_is_empty_list, enif_release_binary,
+    enif_get_map_value, enif_get_tuple, enif_get_uint64, enif_inspect_binary, enif_is_empty_list, enif_release_binary,
     enif_term_to_binary, ErlNifBinary, ErlNifCharEncoding, ErlNifEnv, ERL_NIF_TERM,
 };
 use rustler::{schedule, Atom, Env, NewBinary, NifResult, Term, TermType};
@@ -585,8 +585,13 @@ fn encode_map<const PRETTY: bool>(
     // normalizes them through the protocol and retries once. The test rides on
     // the iteration the encoder already does: atoms are immediate terms, so a
     // key is the `__struct__` atom exactly when the raw terms are equal. A
-    // separate enif_get_map_value would rescan the key array the loop is about
-    // to walk anyway. A binary "__struct__" key is boxed and never matches.
+    // binary "__struct__" key is boxed and never matches.
+    //
+    // Iteration order is not alphabetical (since OTP 26 small maps with atom
+    // keys are ordered by atom index), so an unencodable field such as
+    // DateTime's `microsecond` tuple can fail before `__struct__` is reached.
+    // On failure the map is probed for the key directly, which keeps the
+    // success path a single pass.
     let struct_key = atoms::__struct__().as_c_arg();
     s.buf.push(b'{');
     let mut first = true;
@@ -596,12 +601,28 @@ fn encode_map<const PRETTY: bool>(
         }
         s.separator::<PRETTY>(first, MAX_DEPTH - depth + 1);
         first = false;
-        encode_map_key(env_raw, key, s)?;
-        s.key_separator::<PRETTY>();
-        encode_term::<PRETTY>(env, env_raw, value, s, depth - 1)?;
+        let entry = encode_map_key(env_raw, key, s).and_then(|()| {
+            s.key_separator::<PRETTY>();
+            encode_term::<PRETTY>(env, env_raw, value, s, depth - 1)
+        });
+        if let Err(e) = entry {
+            return Err(if is_struct(env_raw, term, struct_key) {
+                EncodeError::UnhandledStruct
+            } else {
+                e
+            });
+        }
     }
     s.close::<PRETTY>(b'}', !first, MAX_DEPTH - depth);
     Ok(())
+}
+
+#[cold]
+fn is_struct(env_raw: *mut ErlNifEnv, map: Term, struct_key: ERL_NIF_TERM) -> bool {
+    let mut out = MaybeUninit::<ERL_NIF_TERM>::uninit();
+    // SAFETY: `map` is a map term belonging to `env_raw`; `out` is only
+    // written, never read.
+    unsafe { enif_get_map_value(env_raw, map.as_c_arg(), struct_key, out.as_mut_ptr()) != 0 }
 }
 
 #[inline]
